@@ -1,33 +1,18 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-import requests, re, os
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-
-class DomainInput(BaseModel):
-    domain: str
 
 app = FastAPI()
 
 @app.post("/classify")
-async def classify(data: DomainInput):
-    domain = data.domain
-    html = ""
-    patterns = {
-        "servicetitan": r"servicetitan",
-        "housecallpro": r"housecallpro|hcp\.run",
-        "jobber": r"getjobber|jobber",
-    }
-
+async def classify(request: Request):
+    body = await request.body()        # raw bytes
+    print("🧾 RAW BODY:", body)         # see exactly what Clay sends
     try:
-        html = requests.get(f"https://{domain}", timeout=8).text.lower()
-    except Exception:
-        pass
+        data = await request.json()
+    except Exception as e:
+        print("❌ JSON parse error:", e)
+        data = {}
 
-    detected = {k: bool(re.search(v, html)) for k,v in patterns.items()}
-    confidence = 0.9 if any(detected.values()) else 0.5
-
-    return JSONResponse({
-        "domain": domain,
-        **{f"uses_{k}": v for k,v in detected.items()},
-        "confidence": confidence
-    })
+    print("📦 Parsed JSON:", data)
+    domain = data.get("domain") or data.get("Domain")
+    return JSONResponse({"echo_domain": domain})
