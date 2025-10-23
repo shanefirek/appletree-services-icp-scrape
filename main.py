@@ -1,21 +1,22 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from pydantic import BaseModel
 import requests, re, os
+from fastapi.responses import JSONResponse
+
+class DomainInput(BaseModel):
+    domain: str
 
 app = FastAPI()
-ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
-
-patterns = {
-    "servicetitan": r"servicetitan",
-    "housecallpro": r"housecallpro|hcp\.run",
-    "jobber": r"getjobber|jobber",
-}
 
 @app.post("/classify")
-async def classify(request: Request):
-    data = await request.json()
-    domain = data.get("domain")
+async def classify(data: DomainInput):
+    domain = data.domain
     html = ""
+    patterns = {
+        "servicetitan": r"servicetitan",
+        "housecallpro": r"housecallpro|hcp\.run",
+        "jobber": r"getjobber|jobber",
+    }
 
     try:
         html = requests.get(f"https://{domain}", timeout=8).text.lower()
