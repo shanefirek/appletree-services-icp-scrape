@@ -1,19 +1,25 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-import requests, re, os
+from pydantic import BaseModel
+import requests
+import re
 
 app = FastAPI()
 
+class DomainRequest(BaseModel):
+    domain: str
+
 @app.post("/classify")
-async def classify(request: Request):
-    print("🚀 /classify hit")
-    data = await request.json()
-    domain = (data.get("domain") or data.get("Domain") or "").strip().lower()
-    print("🌐 Domain received:", domain)
+async def classify(data: DomainRequest):
+    domain = data.domain.strip().lower()
+    print("Domain received:", domain)
 
     if not domain:
-        print("❌ No domain found")
-        return JSONResponse({"error": "No domain received"}, status_code=400)
+        return JSONResponse(
+            content={"error": "No domain received"},
+            status_code=400,
+            media_type="application/json"
+        )
 
     patterns = {
         "servicetitan": r"servicetitan",
@@ -22,23 +28,31 @@ async def classify(request: Request):
     }
 
     try:
-        html = requests.get(f"https://{domain}", timeout=8).text.lower()
-        print("📄 HTML fetched (length):", len(html))
+        response = requests.get(f"https://{domain}", timeout=8)
+        html = response.text.lower()
+        print("HTML length:", len(html))
     except Exception as e:
-        print("❌ Fetch error:", e)
-        return JSONResponse({"domain": domain, "error": "fetch_failed"})
+        print("Fetch error:", e)
+        return JSONResponse(
+            content={"domain": domain, "error": "fetch_failed"},
+            status_code=502,
+            media_type="application/json"
+        )
 
     detected = {k: bool(re.search(v, html)) for k, v in patterns.items()}
-    print("🔍 Detection results:", detected)
+    print("Detected:", detected)
 
     confidence = 0.9 if any(detected.values()) else 0.5
-
     result = {
         "domain": domain,
         **{f"uses_{k}": v for k, v in detected.items()},
         "confidence": confidence
     }
 
-    print("📤 Returning:", result)
-    return JSONResponse(result)
+    print("Returning:", result)
+
+    return JSONResponse(
+        content=result,
+        media_type="application/json"
+    )
 
