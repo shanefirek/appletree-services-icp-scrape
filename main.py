@@ -22,9 +22,9 @@ async def classify(data: DomainRequest):
         )
 
     patterns = {
-        "servicetitan": r"servicetitan",
-        "housecallpro": r"housecallpro|hcp\.run",
-        "jobber": r"getjobber|jobber",
+        "servicetitan": r"servicetitan|st-cdn\.net|stapi|data-st-|stwidget|st-api|st-data",
+        "housecallpro": r"housecallpro|hcp\.run|app\.housecallpro\.com|onlinerep\.app",
+        "jobber": r"getjobber|jobber|clienthub\.app|jobber-api\.com|book\.getjobber\.com|api\.getjobber\.com",
     }
 
     try:
