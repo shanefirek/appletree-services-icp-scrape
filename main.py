@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import requests
@@ -22,15 +22,23 @@ async def classify(data: DomainRequest):
         )
 
     patterns = {
-        "servicetitan": r"servicetitan|st-cdn\.net|stapi|data-st-|stwidget|st-api|st-data",
-        "housecallpro": r"housecallpro|hcp\.run|app\.housecallpro\.com|onlinerep\.app",
-        "jobber": r"getjobber|jobber|clienthub\.app|jobber-api\.com|book\.getjobber\.com|api\.getjobber\.com",
+        "servicetitan": r"(servicetitan\.com|cdn\.servicetitan\.com|st-cdn\.net|stwidget-[a-z0-9]|st-api\.servicetitan)",
+        "housecallpro": r"(housecallpro\.com|hcp\.run|app\.housecallpro\.com|onlinerep\.app)",
+        "jobber": r"(getjobber\.com|clienthub\.app|book\.getjobber\.com|jobber-api\.com|api\.getjobber\.com)",
     }
 
+    ignore_patterns = [
+        r"stackpath\.bootstrapcdn\.com",
+        r"st\.js",
+        r"data-st-[a-z0-9\-]+"
+    ]
+
     try:
-        response = requests.get(f"https://{domain}", timeout=8)
+        headers = {"User-Agent": "Mozilla/5.0 (SignalDetector/1.0)"}
+        response = requests.get(f"https://{domain}", headers=headers, timeout=10)
         html = response.text.lower()
-        print("HTML length:", len(html))
+        print(f"Fetched {len(html)} chars from {domain}")
+    
     except Exception as e:
         print("Fetch error:", e)
         return JSONResponse(
@@ -39,20 +47,31 @@ async def classify(data: DomainRequest):
             media_type="application/json"
         )
 
-    detected = {k: bool(re.search(v, html)) for k, v in patterns.items()}
-    print("Detected:", detected)
+    for bad in ignore_patterns:
+        html = re.sub(bad, "", html)
 
-    confidence = 0.9 if any(detected.values()) else 0.5
+    detected = {}
+    matches = {}
+
+    for vendor, pattern in patterns.items():
+        match = re.search(pattern, html)
+        if match:
+            detected[vendor] = True
+            matches[vendor] = match.group(0)
+        else:
+            detected[vendor] = False
+
+    print("Detected:", detected)
+    if len(matches) > 0:
+        print("Matched substrings:", matches)
+
+    confidence = 0.95 if any(detected.values()) else 0.5
     result = {
         "domain": domain,
-        **{f"uses_{k}": v for k, v in detected.items()},
-        "confidence": confidence
+        **{f"uses_{vendor}": detected[vendor] for vendor in patterns},
+        "confidence": confidence,
+        "matches": matches
     }
 
-    print("Returning:", result)
-
-    return JSONResponse(
-        content=result,
-        media_type="application/json"
-    )
+    return JSONResponse(content=result, media_type="application/json")
 
